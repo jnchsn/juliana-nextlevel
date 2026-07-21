@@ -60,8 +60,10 @@
   <div id="bottomRight">
     <div id="weaponName">Spaten</div>
     <div id="ammo">--</div>
-    <div style="margin-top:8px;">Kills: <span id="killCount">0</span> &nbsp;|&nbsp; Welle: <span id="waveCount">1</span></div>
+    <div style="margin-top:8px;">Punkte: <span id="scoreCount">0</span></div>
+    <div style="margin-top:4px;">Kills: <span id="killCount">0</span> &nbsp;|&nbsp; Welle: <span id="waveCount">1</span></div>
   </div>
+  <div id="scorePopup" style="position:absolute;top:42%;left:50%;transform:translate(-50%,-50%);font-size:20px;font-weight:bold;opacity:0;pointer-events:none;text-align:center;"></div>
   <div id="toolbar">
     <div class="slot" data-slot="1"><div>1</div><div>Spaten</div></div>
     <div class="slot" data-slot="2"><div>2</div><div>Block</div></div>
@@ -88,7 +90,7 @@
 
 <div id="gameOverOverlay" style="display:none;position:fixed;inset:0;background:rgba(20,0,0,.9);color:#fff;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;z-index:11;">
   <h1 style="font-size:46px;color:#e74c3c;margin:0;">DU BIST GEFALLEN</h1>
-  <p style="font-size:18px;margin-top:14px;">Ueberlebte Welle: <span id="finalWave"></span> &nbsp; Kills: <span id="finalKills"></span></p>
+  <p style="font-size:18px;margin-top:14px;">Ueberlebte Welle: <span id="finalWave"></span> &nbsp; Kills: <span id="finalKills"></span> &nbsp; Punkte: <span id="finalScore"></span></p>
   <button id="restartBtn" style="margin-top:24px;padding:14px 36px;font-size:18px;background:#3f8f2f;border:none;color:#fff;border-radius:4px;cursor:pointer;font-weight:bold;">NOCHMAL VERSUCHEN</button>
 </div>
 

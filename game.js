@@ -27,15 +27,27 @@ const STEP_HEIGHT = 1.05;
 
 const BLOCK_TYPES = {
   ground:     {color:0x4f7a3a, indestructible:false},
+  ground2:    {color:0x456a32, indestructible:false},
   dirt:       {color:0x5b4530, indestructible:false},
+  dirt2:      {color:0x513e2b, indestructible:false},
   border:     {color:0x3c3c3c, indestructible:true},
   stone_ruin: {color:0x8a8a86, indestructible:false},
+  stone_ruin2:{color:0x7d7d79, indestructible:false},
   moss_stone: {color:0x6f8a5e, indestructible:false},
+  moss_stone2:{color:0x647f54, indestructible:false},
   rubble:     {color:0x77706a, indestructible:false},
+  rock:       {color:0x8f8f8f, indestructible:false},
   trunk:      {color:0x5c3f24, indestructible:false},
   leaves:     {color:0x35592b, indestructible:false},
+  leaves2:    {color:0x3d6631, indestructible:false},
   player:     {color:0x3b82c4, indestructible:false}
 };
+const GROUND_VARIANTS = ['ground','ground2'];
+const DIRT_VARIANTS = ['dirt','dirt2'];
+const RUIN_VARIANTS = ['stone_ruin','stone_ruin2'];
+const MOSS_VARIANTS = ['moss_stone','moss_stone2'];
+const LEAF_VARIANTS = ['leaves','leaves2'];
+function pick(arr){ return arr[Math.floor(rng()*arr.length)]; }
 
 /* ---------- Voxel-Welt ---------- */
 const voxels = new Map();
@@ -85,7 +97,7 @@ function ruinStructure(x0,y0,z0,x1,y1,z1,doorSide,doorWidth){
       const colTop = y0 + Math.max(1, Math.round(fullHeight*heightFrac));
       for(let y=y0;y<=colTop;y++){
         const mossy = rng()<0.3;
-        setVoxel(x,y,z, mossy ? 'moss_stone' : 'stone_ruin');
+        setVoxel(x,y,z, mossy ? pick(MOSS_VARIANTS) : pick(RUIN_VARIANTS));
       }
     }
   }
@@ -119,10 +131,33 @@ function placeTree(x,z){
       for(let dy=-1;dy<=1;dy++){
         if(dx===0&&dz===0&&dy<=0) continue;
         if(Math.abs(dx)+Math.abs(dz)+Math.abs(dy) <= 3 && rng()>0.15){
-          setVoxel(x+dx, topY+dy, z+dz, 'leaves');
+          setVoxel(x+dx, topY+dy, z+dz, pick(LEAF_VARIANTS));
         }
       }
     }
+  }
+}
+
+function placeRock(x,z){
+  if(!isSolid(x,1,z) || getVoxel(x,2,z) !== null) return;
+  const size = 1+Math.floor(rng()*2);
+  for(let dx=0;dx<size;dx++){
+    for(let dz=0;dz<size;dz++){
+      if(rng()<0.75) setVoxel(x+dx,2,z+dz,'rock');
+      if(size>1 && rng()<0.3) setVoxel(x+dx,3,z+dz,'rock');
+    }
+  }
+}
+
+function placeFallenLog(x,z){
+  if(!isSolid(x,1,z) || getVoxel(x,2,z) !== null) return;
+  const len = 3+Math.floor(rng()*3);
+  const alongX = rng()<0.5;
+  for(let i=0;i<len;i++){
+    const lx = alongX ? x+i : x;
+    const lz = alongX ? z : z+i;
+    if(!isSolid(lx,1,lz) || getVoxel(lx,2,lz)!==null) continue;
+    setVoxel(lx,2,lz,'trunk');
   }
 }
 
@@ -145,7 +180,10 @@ function scatterForest(){
       if(nearAny(enemySpawns, jx, jz, 3.5)) continue;
       if(Math.hypot(jx-playerSpawn.x, jz-playerSpawn.z) < 5) continue;
       if(rng() < 0.55) continue; // Dichte begrenzen
-      placeTree(jx,jz);
+      const roll = rng();
+      if(roll < 0.72) placeTree(jx,jz);
+      else if(roll < 0.88) placeRock(jx,jz);
+      else placeFallenLog(jx,jz);
     }
   }
 }
@@ -153,8 +191,8 @@ function scatterForest(){
 function buildMap(){
   for(let x=0;x<SIZE;x++){
     for(let z=0;z<SIZE;z++){
-      setVoxel(x,0,z,'ground');
-      setVoxel(x,1,z,'dirt');
+      setVoxel(x,0,z, pick(GROUND_VARIANTS));
+      setVoxel(x,1,z, pick(DIRT_VARIANTS));
     }
   }
   for(let x=0;x<SIZE;x++){
@@ -226,11 +264,14 @@ scene.fog = new THREE.Fog(0x8fc7ef, 34, 95);
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 400);
 scene.add(camera); // noetig, damit an die Kamera gehaengte Waffen-Modelle mitgerendert werden
 
-const hemi = new THREE.HemisphereLight(0xffffff, 0x445533, 1.05);
+const hemi = new THREE.HemisphereLight(0xffffff, 0x445533, 1.1);
 scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+const sun = new THREE.DirectionalLight(0xffffff, 0.95);
 sun.position.set(60,90,40);
 scene.add(sun);
+const fill = new THREE.DirectionalLight(0xbcd4ff, 0.35);
+fill.position.set(-50,40,-60);
+scene.add(fill);
 
 window.addEventListener('resize', ()=>{
   camera.aspect = window.innerWidth/window.innerHeight;
@@ -465,7 +506,11 @@ const player = {
   health: 100
 };
 let killCount = 0;
+let score = 0;
 let waveNumber = 1;
+const HEADSHOT_MULTIPLIER = 2.5;
+const BASE_KILL_POINTS = 100;
+const HEADSHOT_BONUS = 150;
 let gameState = 'menu'; // menu | playing | paused | dead
 
 function resetPlayer(){
@@ -476,7 +521,7 @@ function resetPlayer(){
   yaw = Math.PI; pitch = 0;
   for(let i=0;i<WEAPONS.length;i++){ if(WEAPONS[i].type==='gun'){ ammoState[i].mag = WEAPONS[i].mag; ammoState[i].reserve = WEAPONS[i].reserve; } }
   selectWeapon(0);
-  killCount = 0; waveNumber = 1;
+  killCount = 0; waveNumber = 1; score = 0;
 }
 
 function collidesAt(px,py,pz){
@@ -518,9 +563,14 @@ function updatePlayer(dt, now){
   if(keys['Space'] && player.onGround){ player.vel.y = JUMP_SPEED; }
 
   const dy = player.vel.y*dt;
+  const oldFeet = player.pos.y - EYE_OFFSET;
   if(dy<0){
     if(!collidesAt(player.pos.x, player.pos.y+dy, player.pos.z)) player.pos.y += dy;
-    else { player.vel.y = 0; player.pos.y = Math.ceil(player.pos.y - EYE_OFFSET - 0.001)+EYE_OFFSET; }
+    else {
+      player.vel.y = 0;
+      const restFeet = Math.floor(oldFeet + dy) + 1; // exakt auf der Oberkante des getroffenen Blocks landen
+      player.pos.y = restFeet + EYE_OFFSET;
+    }
   } else {
     if(!collidesAt(player.pos.x, player.pos.y+dy, player.pos.z)) player.pos.y += dy;
     else player.vel.y = 0;
@@ -584,6 +634,7 @@ function onPlayerDeath(){
   document.exitPointerLock();
   document.getElementById('finalWave').textContent = waveNumber;
   document.getElementById('finalKills').textContent = killCount;
+  document.getElementById('finalScore').textContent = score;
   document.getElementById('gameOverOverlay').style.display = 'flex';
 }
 
@@ -754,16 +805,30 @@ function updateEnemies(dt, now){
   }
 }
 
-function damageEnemy(en, amount){
+function damageEnemy(en, amount, isHeadshot){
   en.health -= amount;
   if(en.health<=0 && en.alive){
     en.alive = false;
     killCount++;
+    let pts = BASE_KILL_POINTS + waveNumber*5;
+    if(isHeadshot) pts += HEADSHOT_BONUS;
+    score += pts;
     updateHudKills();
+    updateHudScore();
+    showScorePopup(pts, isHeadshot);
     dyingEnemies.push({group:en.model.group, start:performance.now(), baseY:en.model.group.position.y});
     const idx = enemies.indexOf(en);
     if(idx>=0) enemies.splice(idx,1);
   }
+}
+function showScorePopup(points, isHeadshot){
+  const el = document.getElementById('scorePopup');
+  el.textContent = (isHeadshot ? 'HEADSHOT! ' : '') + '+' + points;
+  el.style.color = isHeadshot ? '#ff5544' : '#ffd166';
+  el.style.opacity = '1';
+  el.style.transform = 'translate(-50%,-50%) scale(1.15)';
+  clearTimeout(el._t);
+  el._t = setTimeout(()=>{ el.style.opacity='0'; el.style.transform='translate(-50%,-50%) scale(1)'; }, 550);
 }
 
 /* Wellen-System */
@@ -909,6 +974,7 @@ function tryUseTool(now){
   playShot(w.id);
 
   let anyHitEnemy = false;
+  let anyHeadshot = false;
   for(let p=0;p<w.pellets;p++){
     const spreadDir = dir.clone();
     spreadDir.x += (Math.random()-0.5)*w.spread;
@@ -919,34 +985,43 @@ function tryUseTool(now){
     const voxelRes = raycastVoxels(origin, spreadDir, 60);
     const voxelDist = voxelRes.hit ? voxelRes.distance : 60;
 
-    let closestEnemy=null, closestDist=voxelDist;
+    let closestEnemy=null, closestDist=voxelDist, isHeadshot=false;
     for(const en of enemies){
       if(!en.alive) continue;
-      const center = new THREE.Vector3(en.pos.x, en.pos.y+0.85, en.pos.z);
-      const toCenter = new THREE.Vector3().subVectors(center, origin);
-      const proj = toCenter.dot(spreadDir);
-      if(proj<0 || proj>closestDist) continue;
-      const closestPoint = origin.clone().add(spreadDir.clone().multiplyScalar(proj));
-      const dd = closestPoint.distanceTo(center);
-      if(dd < 0.6 && proj < closestDist){
-        closestDist = proj;
-        closestEnemy = en;
-      }
+      const checkPart = (center, radius, headFlag)=>{
+        const toCenter = new THREE.Vector3().subVectors(center, origin);
+        const proj = toCenter.dot(spreadDir);
+        if(proj<0 || proj>closestDist) return;
+        const closestPoint = origin.clone().add(spreadDir.clone().multiplyScalar(proj));
+        const dd = closestPoint.distanceTo(center);
+        if(dd < radius && proj < closestDist){
+          closestDist = proj;
+          closestEnemy = en;
+          isHeadshot = headFlag;
+        }
+      };
+      checkPart(new THREE.Vector3(en.pos.x, en.pos.y+1.15, en.pos.z), 0.45, false);
+      checkPart(new THREE.Vector3(en.pos.x, en.pos.y+1.7, en.pos.z), 0.32, true);
     }
     fireTracer(origin.clone(), spreadDir, 0xfff2b0);
     if(closestEnemy){
-      damageEnemy(closestEnemy, w.damage);
+      const dmg = isHeadshot ? Math.round(w.damage*HEADSHOT_MULTIPLIER) : w.damage;
+      damageEnemy(closestEnemy, dmg, isHeadshot);
       anyHitEnemy = true;
+      if(isHeadshot) anyHeadshot = true;
     }
   }
-  if(anyHitEnemy) showHitMarker();
+  if(anyHitEnemy) showHitMarker(anyHeadshot);
   if(st.mag<=0) startReload();
 }
-function showHitMarker(){
+function showHitMarker(isHeadshot){
   const hm = document.getElementById('hitmarker');
   hm.style.opacity='1';
+  hm.style.setProperty('--c', isHeadshot ? '#ff3b3b' : '#ff3b3b');
+  if(isHeadshot){ hm.style.transform = 'translate(-50%,-50%) rotate(45deg) scale(1.4)'; }
+  else { hm.style.transform = 'translate(-50%,-50%) rotate(45deg) scale(1)'; }
   clearTimeout(hm._t);
-  hm._t = setTimeout(()=>{hm.style.opacity='0';},140);
+  hm._t = setTimeout(()=>{hm.style.opacity='0';},180);
 }
 
 /* ---------- HUD ---------- */
@@ -973,6 +1048,7 @@ function updateHudAmmo(){
   }
 }
 function updateHudKills(){ document.getElementById('killCount').textContent = killCount; }
+function updateHudScore(){ document.getElementById('scoreCount').textContent = score; }
 function updateHudWave(){ document.getElementById('waveCount').textContent = waveNumber; }
 
 /* ---------- Start / Reset ---------- */
@@ -981,7 +1057,7 @@ document.getElementById('startBtn').addEventListener('click', ()=>{
   gameState = 'playing';
   needsRebuild = true;
   resetPlayer();
-  updateHudHealth(); updateHudBlocks(); updateHudWeapon(); updateHudKills(); updateHudWave();
+  updateHudHealth(); updateHudBlocks(); updateHudWeapon(); updateHudKills(); updateHudWave(); updateHudScore();
   canvas.requestPointerLock();
   clearEnemies();
   startWave();
@@ -990,7 +1066,7 @@ document.getElementById('restartBtn').addEventListener('click', ()=>{
   document.getElementById('gameOverOverlay').style.display='none';
   gameState='playing';
   resetPlayer();
-  updateHudHealth(); updateHudBlocks(); updateHudWeapon(); updateHudKills(); updateHudWave();
+  updateHudHealth(); updateHudBlocks(); updateHudWeapon(); updateHudKills(); updateHudWave(); updateHudScore();
   canvas.requestPointerLock();
   clearEnemies();
   waveInProgress=false;
