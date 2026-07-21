@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Voxel Siege - PvE</title>
+<style>
+  html,body{margin:0;padding:0;overflow:hidden;background:#87ceeb;font-family:Arial,Helvetica,sans-serif;}
+  #c{display:block;}
+  #hud{position:fixed;inset:0;pointer-events:none;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.8);}
+  #crosshair{position:absolute;top:50%;left:50%;width:20px;height:20px;transform:translate(-50%,-50%);}
+  #crosshair:before,#crosshair:after{content:'';position:absolute;background:#fff;}
+  #crosshair:before{left:9px;top:0;width:2px;height:20px;}
+  #crosshair:after{top:9px;left:0;width:20px;height:2px;}
+  #hitmarker{position:absolute;top:50%;left:50%;width:26px;height:26px;transform:translate(-50%,-50%) rotate(45deg);opacity:0;pointer-events:none;}
+  #hitmarker:before,#hitmarker:after{content:'';position:absolute;background:#ff3b3b;}
+  #hitmarker:before{left:11px;top:0;width:4px;height:26px;}
+  #hitmarker:after{top:11px;left:0;width:26px;height:4px;}
+  .flash{animation:flashAnim .18s ease-out;}
+  @keyframes flashAnim{0%{opacity:1;}100%{opacity:0;}}
+  #bottomLeft{position:absolute;left:18px;bottom:16px;font-size:16px;line-height:1.5;}
+  #bottomRight{position:absolute;right:18px;bottom:16px;font-size:16px;text-align:right;line-height:1.5;}
+  #topCenter{position:absolute;top:14px;left:50%;transform:translateX(-50%);font-size:18px;text-align:center;}
+  #healthWrap{width:220px;height:20px;border:2px solid rgba(255,255,255,.8);background:rgba(0,0,0,.4);border-radius:3px;overflow:hidden;margin-bottom:6px;}
+  #healthBar{height:100%;background:linear-gradient(90deg,#c0392b,#e74c3c);width:100%;transition:width .15s;}
+  #blocksWrap{width:120px;height:12px;border:2px solid rgba(255,255,255,.7);background:rgba(0,0,0,.4);border-radius:3px;overflow:hidden;}
+  #blocksBar{height:100%;background:#3b82c4;width:100%;transition:width .15s;}
+  #weaponName{font-size:22px;font-weight:bold;}
+  #ammo{font-size:26px;font-weight:bold;}
+  #vignette{position:absolute;inset:0;box-shadow:inset 0 0 0 0 rgba(200,0,0,0);pointer-events:none;}
+  #dmgFlash{position:absolute;inset:0;background:rgba(200,0,0,.35);opacity:0;pointer-events:none;}
+  #overlay{position:fixed;inset:0;background:rgba(10,15,10,.92);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-family:Arial,Helvetica,sans-serif;z-index:10;}
+  #overlay h1{font-size:44px;margin:0 0 10px;letter-spacing:2px;color:#7fd858;}
+  #overlay p{max-width:560px;line-height:1.6;font-size:15px;color:#ddd;}
+  #overlay button{margin-top:22px;padding:14px 36px;font-size:18px;background:#3f8f2f;border:none;color:#fff;border-radius:4px;cursor:pointer;font-weight:bold;}
+  #overlay button:hover{background:#4fae3a;}
+  #overlay .keys{display:grid;grid-template-columns:auto auto;gap:4px 18px;text-align:left;margin-top:18px;font-size:14px;color:#cfe;}
+  #overlay .keys b{color:#fff;}
+  #waveBanner{position:absolute;top:80px;left:50%;transform:translateX(-50%);font-size:30px;font-weight:bold;color:#ffd166;opacity:0;text-shadow:0 2px 6px rgba(0,0,0,.9);}
+  #hidden{display:none;}
+  a.dl{color:#7fd858;}
+  #toolbar{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:6px;}
+  .slot{width:52px;height:52px;background:rgba(0,0,0,.45);border:2px solid rgba(255,255,255,.35);border-radius:5px;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;text-align:center;flex-direction:column;}
+  .slot.active{border-color:#ffd166;background:rgba(255,209,102,.25);}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div id="crosshair"></div>
+  <div id="hitmarker"></div>
+  <div id="dmgFlash"></div>
+  <div id="topCenter">
+    <div id="waveBanner"></div>
+  </div>
+  <div id="bottomLeft">
+    <div id="healthWrap"><div id="healthBar"></div></div>
+    <div id="blocksWrap"><div id="blocksBar"></div></div>
+    <div style="margin-top:6px;">Bloecke: <span id="blockCount">50</span></div>
+  </div>
+  <div id="bottomRight">
+    <div id="weaponName">Spaten</div>
+    <div id="ammo">--</div>
+    <div style="margin-top:8px;">Kills: <span id="killCount">0</span> &nbsp;|&nbsp; Welle: <span id="waveCount">1</span></div>
+  </div>
+  <div id="toolbar">
+    <div class="slot" data-slot="1"><div>1</div><div>Spaten</div></div>
+    <div class="slot" data-slot="2"><div>2</div><div>Block</div></div>
+    <div class="slot" data-slot="3"><div>3</div><div>Rifle</div></div>
+    <div class="slot" data-slot="4"><div>4</div><div>SMG</div></div>
+    <div class="slot" data-slot="5"><div>5</div><div>Shotgun</div></div>
+  </div>
+</div>
+
+<div id="overlay">
+  <h1>VOXEL SIEGE</h1>
+  <p>Verteidige die Festung gegen anrueckende Wellen feindlicher Soldaten. Grabe Material ab, baue Deckungen, und nutze Rifle, SMG und Shotgun um die Gegner zu stoppen.</p>
+  <div class="keys">
+    <div><b>WASD</b></div><div>Bewegen</div>
+    <div><b>Maus</b></div><div>Umsehen</div>
+    <div><b>Leertaste</b></div><div>Springen</div>
+    <div><b>Linksklick</b></div><div>Schiessen / Abbauen / Platzieren</div>
+    <div><b>1-5</b></div><div>Werkzeug wechseln</div>
+    <div><b>R</b></div><div>Nachladen</div>
+    <div><b>Esc</b></div><div>Zeiger loesen</div>
+  </div>
+  <button id="startBtn">SPIEL STARTEN</button>
+</div>
+
+<div id="gameOverOverlay" style="display:none;position:fixed;inset:0;background:rgba(20,0,0,.9);color:#fff;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;z-index:11;">
+  <h1 style="font-size:46px;color:#e74c3c;margin:0;">DU BIST GEFALLEN</h1>
+  <p style="font-size:18px;margin-top:14px;">Ueberlebte Welle: <span id="finalWave"></span> &nbsp; Kills: <span id="finalKills"></span></p>
+  <button id="restartBtn" style="margin-top:24px;padding:14px 36px;font-size:18px;background:#3f8f2f;border:none;color:#fff;border-radius:4px;cursor:pointer;font-weight:bold;">NOCHMAL VERSUCHEN</button>
+</div>
+
+<div id="errorBanner" style="display:none;position:fixed;top:0;left:0;right:0;background:#b00020;color:#fff;padding:12px 16px;font:13px monospace;z-index:99999;white-space:pre-wrap;line-height:1.5;"></div>
+<script>
+  function showErr(msg){
+    const el = document.getElementById('errorBanner');
+    el.style.display = 'block';
+    el.textContent += (el.textContent ? '\n' : '') + msg;
+  }
+  window.addEventListener('error', function(e){
+    showErr('Fehler: ' + (e.message||'unbekannt') + '  [' + (e.filename||'?') + ':' + (e.lineno||'?') + ']');
+  });
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"
+  onload="if(typeof THREE==='undefined') showErr('three.min.js hat geladen, aber THREE ist nicht definiert.');"
+  onerror="showErr('three.min.js konnte NICHT geladen werden (CDN blockiert / keine Internetverbindung?). Pruefe Firewall/Adblocker.')"></script>
+<script src="game.js"
+  onerror="showErr('game.js konnte NICHT geladen werden. Liegt die Datei im selben Ordner wie diese HTML-Datei?')"></script>
+</body>
+</html>
